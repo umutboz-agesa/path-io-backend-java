@@ -11,13 +11,33 @@ Yol haritası: `PathIO_Java_Donusum_Yol_Haritasi.docx` (ana repo kökü).
 
 | Faz | Kapsam | Durum |
 |-----|--------|-------|
-| 0 | Gradle iskelet, common lib, admin dikey dilimi (apps CRUD), Dockerfile + Jenkinsfile | ✅ Tamam |
+| 0 | Gradle iskelet, common lib, admin dikey dilimi (apps CRUD), Dockerfile + Jenkinsfile | 🟡 Kısmen |
 | 1 | admin mini-service — kalan 45 endpoint | ⏳ Sırada |
 | 2 | funnel-worker — eventProcessor (Redis Streams → TimescaleDB) | — |
 | 3 | funnel-worker — funnelMatcher (550 satır durum makinesi) | — |
 | 4 | realtime mini-service — WS ağ geçidi + insightEngine | — |
 | 5 | gcl-bridge — Pub/Sub → Redis | — |
 | 6 | Parity & cutover | — |
+
+### Faz 0 — madde madde
+
+Yol haritasındaki Faz 0 tanımına göre:
+
+| Madde | Durum |
+|-------|-------|
+| Gradle multi-module + Spring Boot 3.5.6 + common lib | ✅ |
+| İlk mini-service iskeleti (client/service ayrımı) | ✅ |
+| Dikey dilim: apps CRUD, Java'da canlı ve parite doğrulanmış | ✅ |
+| Dockerfile + Jenkinsfile | ⚠️ yazıldı, **çalıştırılmadı** (image build edilmedi, pipeline denenmedi) |
+| 13 tablonun JPA entity + jsonb mapping'i | 🟡 **2/13** (apps, screens) |
+| PostgreSQL bağlantısı | ✅ |
+| Redis bağlantısı | ⚠️ starter + config var, **bağlantı doğrulanmadı** (henüz kullanan kod yok) |
+| TimescaleDB ayrı pool | ❌ hiç kurulmadı |
+| External config (Bitbucket, ortam profilleri) | 🟡 profil yapısı var, external config bağlanmadı |
+| OpenShift'e deploy | ❌ erişim yok |
+
+**Bitiş kriteri "pipeline uçtan uca çalışıyor" henüz karşılanmadı** — Faz 0'ın altyapı yarısı
+açık. Kod yarısı (iskelet + dikey dilim + parite) tamam.
 
 ---
 
