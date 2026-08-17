@@ -1,0 +1,8 @@
+# Build çıktıları image'a girmemeli — katman şişer ve host'un derlemesi container'a sızar.
+.gradle/
+**/build/
+.git/
+.idea/
+*.iml
+.DS_Store
+scripts/

@@ -15,15 +15,16 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * {@code screens} tablosu — unique(app_id, name, platform).
+ * {@code devices} tablosu — unique(app_id, device_id).
  *
- * <p>Ekran adı ham class adıdır (suffix stripping yok, SDK v1.1.4+).
+ * <p>{@code device_id} SDK'nın ürettiği UUID string'dir; tablonun kendi {@code id}'si ile
+ * karıştırılmamalı. Redis anahtarlarında ve WS mesajlarında geçen "deviceId" bu kolondur.
  */
 @Entity
-@Table(name = "screens")
+@Table(name = "devices")
 @Getter
 @Setter
-public class ScreenEntity {
+public class DeviceEntity {
 
     @Id
     @Column(name = "id", nullable = false)
@@ -32,34 +33,25 @@ public class ScreenEntity {
     @Column(name = "app_id", nullable = false)
     private UUID appId;
 
-    @Column(name = "parent_id")
-    private UUID parentId;
-
-    @Column(name = "name", nullable = false)
-    private String name;
-
-    @Column(name = "display_name", nullable = false)
-    private String displayName;
+    @Column(name = "device_id", nullable = false)
+    private String deviceId;
 
     @Column(name = "platform", nullable = false)
     private String platform;
 
-    @Column(name = "canonical_name")
-    private String canonicalName;
+    @Column(name = "os_version", nullable = false)
+    private String osVersion;
 
-    @Column(name = "first_seen_at", nullable = false)
-    private Instant firstSeenAt;
+    @Column(name = "app_version", nullable = false)
+    private String appVersion;
 
-    @Column(name = "last_seen_at", nullable = false)
-    private Instant lastSeenAt;
+    @Column(name = "model", nullable = false)
+    private String model;
 
-    @Column(name = "event_count", nullable = false)
-    private int eventCount;
+    @Column(name = "last_seen", nullable = false)
+    private Instant lastSeen;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", nullable = false)
     private Map<String, Object> metadata = new LinkedHashMap<>();
-
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
 }

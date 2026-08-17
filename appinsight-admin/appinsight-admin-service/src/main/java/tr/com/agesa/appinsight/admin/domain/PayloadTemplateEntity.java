@@ -15,44 +15,43 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * {@code apps} tablosu.
+ * {@code payload_templates} tablosu.
  *
- * <p><b>Şemaya dokunulmaz</b> — tablo Drizzle migration'ları ile yönetilir,
- * Hibernate {@code ddl-auto: none} ile çalışır. Bu sınıf yalnızca mevcut şemayı okur/yazar.
- *
- * <p>jsonb kolonlar {@link JdbcTypeCode} + {@link SqlTypes#JSON} ile eşlenir; ek kütüphane
- * (hypersistence-utils) gerekmez, Hibernate 6 bunu yerleşik destekler.
+ * <p><b>İsim tuzağı:</b> Drizzle'da alan adı {@code fieldSchema} ama kolon adı {@code schema}.
+ * Kolon adı {@code schema} olduğu için PostgreSQL'de tırnaklanması gerekir; Hibernate bunu
+ * otomatik yapmaz, bu yüzden {@code @Column(name = "\"schema\"")} yazıldı. Tırnak
+ * kaldırılırsa sorgu {@code schema} anahtar kelimesine takılır.
  */
 @Entity
-@Table(name = "apps")
+@Table(name = "payload_templates")
 @Getter
 @Setter
-public class AppEntity {
+public class PayloadTemplateEntity {
 
     @Id
     @Column(name = "id", nullable = false)
     private UUID id;
 
+    @Column(name = "app_id", nullable = false)
+    private UUID appId;
+
     @Column(name = "name", nullable = false)
     private String name;
 
-    @Column(name = "api_key", nullable = false, unique = true)
-    private String apiKey;
+    @Column(name = "description")
+    private String description;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "bundle_ids", nullable = false)
-    private Map<String, Object> bundleIds = new LinkedHashMap<>();
+    @Column(name = "\"schema\"", nullable = false)
+    private Map<String, Object> fieldSchema = new LinkedHashMap<>();
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "default_data", nullable = false)
+    private Map<String, Object> defaultData = new LinkedHashMap<>();
 
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "platforms", nullable = false)
     private String[] platforms = new String[0];
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "config", nullable = false)
-    private Map<String, Object> config = new LinkedHashMap<>();
-
-    @Column(name = "is_active", nullable = false)
-    private boolean isActive = true;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;

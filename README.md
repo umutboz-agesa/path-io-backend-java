@@ -11,7 +11,7 @@ Yol haritası: `PathIO_Java_Donusum_Yol_Haritasi.docx` (ana repo kökü).
 
 | Faz | Kapsam | Durum |
 |-----|--------|-------|
-| 0 | Gradle iskelet, common lib, admin dikey dilimi (apps CRUD), Dockerfile + Jenkinsfile | 🟡 Kısmen |
+| 0 | Gradle iskelet, common lib, admin dikey dilimi (apps CRUD), Dockerfile + Jenkinsfile | 🟢 Kod + altyapı tamam, deploy hattı bekliyor |
 | 1 | admin mini-service — kalan 45 endpoint | ⏳ Sırada |
 | 2 | funnel-worker — eventProcessor (Redis Streams → TimescaleDB) | — |
 | 3 | funnel-worker — funnelMatcher (550 satır durum makinesi) | — |
@@ -28,16 +28,42 @@ Yol haritasındaki Faz 0 tanımına göre:
 | Gradle multi-module + Spring Boot 3.5.6 + common lib | ✅ |
 | İlk mini-service iskeleti (client/service ayrımı) | ✅ |
 | Dikey dilim: apps CRUD, Java'da canlı ve parite doğrulanmış | ✅ |
-| Dockerfile + Jenkinsfile | ⚠️ yazıldı, **çalıştırılmadı** (image build edilmedi, pipeline denenmedi) |
-| 13 tablonun JPA entity + jsonb mapping'i | 🟡 **2/13** (apps, screens) |
+| **13 tablonun JPA entity + jsonb mapping'i** | ✅ **13/13**, gerçek şemaya karşı test edildi |
 | PostgreSQL bağlantısı | ✅ |
-| Redis bağlantısı | ⚠️ starter + config var, **bağlantı doğrulanmadı** (henüz kullanan kod yok) |
-| TimescaleDB ayrı pool | ❌ hiç kurulmadı |
-| External config (Bitbucket, ortam profilleri) | 🟡 profil yapısı var, external config bağlanmadı |
-| OpenShift'e deploy | ❌ erişim yok |
+| Redis bağlantısı | ✅ yaz/oku testiyle doğrulandı |
+| TimescaleDB ayrı pool | ✅ ayrı Hikari havuzu + hypertable sorgusu doğrulandı |
+| Dockerfile | ✅ image build edildi, container ayağa kalktı, **yanıtı Node ile bayt bayt aynı** |
+| Jenkinsfile | ⚠️ yazıldı, **çalıştırılmadı** — Jenkins erişimi gerekiyor |
+| External config (Bitbucket) | 🟡 profil yapısı var, external config bağlanmadı |
+| OpenShift'e deploy | ❌ erişim gerekiyor |
 
-**Bitiş kriteri "pipeline uçtan uca çalışıyor" henüz karşılanmadı** — Faz 0'ın altyapı yarısı
-açık. Kod yarısı (iskelet + dikey dilim + parite) tamam.
+Kalan üç madde de **altyapı erişimi** istiyor (Jenkins, Bitbucket external config, OpenShift) —
+kod tarafında Faz 0'da yapılacak bir şey kalmadı.
+
+### Entity eşleme doğrulaması
+
+13 entity'nin tamamı **gerçek Drizzle şemasına** karşı test ediliyor — Hibernate'in kendi
+ürettiği şemaya değil. İki varyant aynı testleri koşturur:
+
+| Test | Şema kaynağı | Ne zaman koşar |
+|------|--------------|----------------|
+| `EntityMappingIT` | Testcontainers + gerçek migration'lar (sıfırdan) | Docker varsa (CI) |
+| `LocalDbEntityMappingTest` | Geliştiricinin canlı veritabanı | Postgres 5432'de açıksa |
+
+İkisi de yoksa testler **atlanır**, kırmızı yanmaz. Testler transaction içinde koşar ve geri
+alınır — canlı veriye kalıcı satır yazılmaz.
+
+Migration'lar `src/test/resources/db/migrations` altında kopya tutulur;
+`scripts/sync-migrations.sh` ile tazelenir. **Node tarafında yeni migration eklenip bu script
+çalıştırılmazsa test eski şemaya karşı geçmeye devam eder** — bilinçli kabul edilmiş risk.
+
+### Eşlemede yakalanan üç tuzak
+
+| Tablo | Tuzak |
+|-------|-------|
+| `payload_templates` | Kolon adı `schema` — PostgreSQL rezerve kelimesi, tırnaklanması şart (`@Column(name = "\"schema\"")`). |
+| `insights` | `target_screens` **jsonb dizi**, `text[]` değil. `apps.platforms` ile aynı sanılırsa okuma anında patlar. |
+| `sessions` | Birincil anahtar `text`, `uuid` değil — değeri SDK üretir, olduğu gibi saklanır. |
 
 ---
 
@@ -85,6 +111,12 @@ bash ../start.sh          # ya da zaten çalışıyorsa atla
 ```bash
 ./gradlew build     # derleme + test
 ./gradlew test      # yalnız test
+
+# Docker image
+docker build -f appinsight-admin/appinsight-admin-service/Dockerfile -t appinsight-admin:local .
+
+# Node tarafında migration eklendiyse test fixture'larını tazele
+./scripts/sync-migrations.sh
 ```
 
 ---
