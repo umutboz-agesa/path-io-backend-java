@@ -1,0 +1,14 @@
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Ortam bazlı gizli config — external config (Bitbucket) üzerinden verilir,
+# repoya asla girmez.
+application-local-secrets.yml
+*.env

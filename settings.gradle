@@ -1,0 +1,16 @@
+plugins {
+    // Gradle'ın toolchain JDK'sını otomatik indirmesini sağlar — makinede JDK 21
+    // kurulu olmasa da build çalışır (bkz. build.gradle toolchain bloğu).
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'path-io-backend-java'
+
+// Ortak kütüphane — domain modelleri, WS protokol DTO'ları, Redis anahtar üreticileri,
+// hata tipleri. Tüm servisler ve client modülleri buna bağımlıdır.
+include 'appinsight-common'
+
+// Mini-service'ler. Her biri client (Feign arayüzü + DTO) + service (controller-service-repository)
+// alt projelerinden oluşur.
+include 'appinsight-admin:appinsight-admin-client'
+include 'appinsight-admin:appinsight-admin-service'

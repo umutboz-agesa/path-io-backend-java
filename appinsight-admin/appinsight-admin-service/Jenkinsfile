@@ -1,0 +1,67 @@
+pipeline {
+    agent any
+
+    parameters {
+        choice(name: 'ENVIRONMENT', choices: ['dev', 'test', 'prod'], description: 'Hedef ortam')
+    }
+
+    environment {
+        SERVICE_NAME = 'appinsight-admin'
+        MODULE_PATH  = ':appinsight-admin:appinsight-admin-service'
+        IMAGE_TAG    = "${env.BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build & Test') {
+            steps {
+                sh './gradlew clean build --no-daemon'
+            }
+            post {
+                always {
+                    junit '**/build/test-results/test/*.xml'
+                }
+            }
+        }
+
+        stage('Package') {
+            steps {
+                sh "./gradlew ${MODULE_PATH}:bootJar --no-daemon"
+            }
+        }
+
+        stage('Docker Build & Push') {
+            steps {
+                sh """
+                    docker build -f appinsight-admin/appinsight-admin-service/Dockerfile \
+                        -t \${REGISTRY}/\${SERVICE_NAME}:\${IMAGE_TAG} .
+                    docker push \${REGISTRY}/\${SERVICE_NAME}:\${IMAGE_TAG}
+                """
+            }
+        }
+
+        stage('Deploy to OpenShift') {
+            steps {
+                // K8s YAML'lar GitLab'daki maf-applications reposunda tutulur;
+                // burada yalnızca image tag'i güncellenir.
+                sh """
+                    oc project appinsight-\${ENVIRONMENT}
+                    oc set image deployment/\${SERVICE_NAME} \
+                        \${SERVICE_NAME}=\${REGISTRY}/\${SERVICE_NAME}:\${IMAGE_TAG}
+                    oc rollout status deployment/\${SERVICE_NAME} --timeout=180s
+                """
+            }
+        }
+    }
+
+    post {
+        failure {
+            echo "Build başarısız: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+        }
+    }
+}

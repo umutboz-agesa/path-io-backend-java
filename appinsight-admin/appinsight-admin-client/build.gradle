@@ -1,0 +1,11 @@
+// Client alt projesi: Feign arayüzleri + DTO'lar.
+// Diğer mini-service'ler bu artifact'ı dependency olarak alır — bu yüzden
+// burada Spring Boot uygulaması, repository veya iş mantığı BULUNMAZ.
+dependencies {
+    api project(':appinsight-common')
+    api 'org.springframework.cloud:spring-cloud-starter-openfeign'
+
+    // DTO'lardaki doğrulama annotation'ları (Zod şemalarının karşılığı) client
+    // artifact'ında da görünür olmalı — bağımlı servisler aynı kuralları uygular.
+    api 'jakarta.validation:jakarta.validation-api'
+}

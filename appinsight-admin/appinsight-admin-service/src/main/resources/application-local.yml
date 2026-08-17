@@ -1,0 +1,25 @@
+# Yerel geliştirme — mevcut Node platformunun docker-compose'u ile AYNI veritabanı.
+# Node backend'i kapatmaya gerek yok; iki sistem aynı DB üzerinde paralel çalışabilir
+# (yol haritası §6.2 — strangler-fig / paralel çalıştırma).
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/insight_platform
+    username: insight
+    password: password
+    hikari:
+      maximum-pool-size: 5
+      pool-name: appinsight-admin-pool
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+# Node 3000'de duruyor; çakışmamak için Java 8080'de.
+server:
+  port: 8080
+
+logging:
+  level:
+    tr.com.agesa.appinsight: DEBUG
+    org.hibernate.SQL: DEBUG
