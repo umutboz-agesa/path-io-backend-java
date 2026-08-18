@@ -95,7 +95,8 @@ public class SdkFunnelMatcher {
                     state.currentStep(), steps.size(), ts, "step_timeout");
         }
 
-        // 5) Sıradaki adım yok — durum bozulmuş, tamamlanmış say (Node: "crash recovery")
+        // 5) Sıradaki adım yok — yalnızca BOZUK durumlarda (ör. funnel adımları kısaltıldığında)
+        //    tetiklenir. Düzeltmeden önce normal tamamlanma yolu buydu; artık değil.
         if (state.currentStep() >= steps.size()) {
             stateStore.delete(stateKey);
             return new FunnelDecision(FunnelDecision.Type.FUNNEL_COMPLETED, funnelId, deviceId, screen,
@@ -115,7 +116,11 @@ public class SdkFunnelMatcher {
 
         FunnelState advanced = state.advancedTo(state.currentStep() + 1, ts);
 
-        if (advanced.currentStep() > steps.size()) {
+        // `>` DEĞİL `>=` — currentStep "tamamlanan adım sayısı"dır; N adımlı funnel'da son adım
+        // eşleştiğinde currentStep === N olur. Node'da bu koşul `>` idi ve dal hiç çalışmıyordu
+        // (yukarıdaki crash-recovery dalı aynı durumu önce yakalıyordu). Hata iki sistemde
+        // birlikte düzeltildi; bkz. docs/BACKLOG.md.
+        if (advanced.currentStep() >= steps.size()) {
             // session_once: aynı oturumda ikinci kez tetiklenmesin
             if ("session_once".equals(triggerMode)) {
                 String visitKey = stateStore.visitKey(funnelId, deviceId, sessionId);

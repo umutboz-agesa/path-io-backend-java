@@ -131,11 +131,41 @@ gereği **uygulanmadı**.
 
 ---
 
+## ✅ Çok adımlı funnel hatası — DÜZELTİLDİ (iki sistemde birlikte)
+
+**Neydi:** `evaluateSdkFunnel`'da tamamlanma koşulu `if (state.currentStep > funnel.steps.length)`
+idi. `currentStep` "tamamlanan adım sayısı" olduğu için N adımlı funnel'da son adım eşleştiğinde
+`currentStep === N` oluyor ve koşul tutmuyordu. Bir üstteki `if (!nextStep)` dalı aynı durumu
+daha önce yakalayıp "crash recovery" olarak tamamladığı için dal **ölü koddu**.
+
+**Sonuçları:**
+1. Funnel son adımda değil, SONRAKİ herhangi bir eventte tetikleniyordu. Kullanıcı son adımdan
+   sonra uygulamayı kapatırsa insight **hiç gitmiyordu**.
+2. Crash-recovery dalı `funnel_visit_fired` yazmadığı için `session_once` çok adımlı
+   funnel'larda **işlemiyordu** — aynı oturumda tekrar tetiklenebiliyordu.
+
+**Düzeltme:** koşul `>=` yapıldı (Node + Java). `!nextStep` dalı artık yalnızca gerçekten bozuk
+durumlar için kalıyor (ör. funnel adımları sonradan kısaltılmışsa).
+
+**Doğrulama (canlı Node, 2 adımlı session_once funnel):**
+* Son adım eventinde `Funnel completed` — üçüncü event gerekmedi
+* Log "crash recovery" DEĞİL "Funnel completed" diyor → ölü dal artık çalışıyor
+* `funnel_visit_fired:{funnelId}:{deviceId}:{sessionId}` yazıldı → dedup işliyor
+* `funnel_state` temizlendi, askıda durum kalmadı
+* Cihaz bağlı olmadığı için `pending_insight` kuyruğa alındı (beklenen davranış)
+
+Java tarafında `SdkFunnelMatcherTest` düzeltilmiş davranışı kilitliyor (12 test).
+
+**Etki notu:** bu hata bulunduğunda mevcut 10 funnel'ın tamamı tek adımlıydı; tek adımlı
+funnel'lar farklı koddan geçtiği için etkilenmiyorlardı. Yani hata canlıda görünür bir soruna
+yol açmamıştı — ilk çok adımlı funnel kurulduğunda ortaya çıkacaktı.
+
+---
+
 ## Cutover sonrası düzeltilecek — İKİ sistemde birlikte
 
 | # | Konu | Detay |
 |---|------|-------|
-| 2 | **🔴 Çok adımlı funnel N+1'inci eventte tetikleniyor, dedup'suz** | `evaluateSdkFunnel`'da iki tamamlanma dalı var. Dal A (`if (!nextStep)`, "crash recovery") dal B'den (`if (currentStep > steps.length)`) ÖNCE geliyor ve aynı koşulu yakalıyor — **dal B ölü kod**. Sonuçları: (1) N adımlı funnel son adım eşleştiğinde tamamlanmıyor, yalnız ilerliyor; tetikleme **sonraki herhangi bir eventte** oluyor. Kullanıcı son adımdan sonra uygulamayı kapatırsa insight **hiç gitmiyor**. (2) Dal A `funnel_visit_fired` yazmıyor → `session_once` çok adımlı funnel'larda **işlemiyor**, aynı oturumda tekrar tetiklenebiliyor. Düzeltme: dal B'nin kontrolünü `>=` yapıp dal A'nın önüne almak ya da dal A'ya dedup eklemek — davranış değişikliği olduğu için iki sistemde birlikte ve bilinçli yapılmalı. Java'da birebir kopyalandı, `SdkFunnelMatcherTest` iki senaryoyu da kilitliyor. |
 | 1 | **Ekran grubu `lastSeenAt` yanlış** | `screens.ts`: `members.map(m => m.lastSeenAt).sort().at(-1)` — JS'te karşılaştırıcısız `sort()` `Date`'leri string'e çevirir, sıralama haftanın gün adına göre alfabetik olur ("Fri" < "Mon" < "Sat" < "Sun" < "Thu"). En yeni tarih değil, gün adı alfabetik son olan seçilir. **Portal yanlış tarih gösteriyor.** Java tarafında bilerek birebir kopyalandı (parite), `ScreenServiceGroupingTest` kilitliyor. Düzeltme: `Math.max` / `Comparator.naturalOrder()` — aynı anda iki tarafta, sonra test güncellenir. |
 
 **Neden şimdi değil:** gölge trafik karşılaştırmasında Java'yı "düzeltmek" sürekli fark üretir

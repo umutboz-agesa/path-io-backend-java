@@ -100,7 +100,7 @@ class SdkFunnelMatcherTest {
     }
 
     @Test
-    @DisplayName("çok adımlı funnel N adımda BİTMEZ — N+1'inci eventte tamamlanır (Node hatası)")
+    @DisplayName("çok adımlı funnel SON adım eşleştiğinde tamamlanır")
     void cokAdimliAkis() {
         Map<String, Object> f = funnel("session_once",
                 new ArrayList<>(List.of(step("Home"), step("Cart"), step("Checkout"))));
@@ -110,32 +110,45 @@ class SdkFunnelMatcherTest {
         assertThat(matcher.evaluate(f, "D1", "S1", "Cart", "appeared", 2000, 0).type())
                 .isEqualTo(FunnelDecision.Type.STEP_ADVANCED);
 
-        // SON adım eşleşiyor ama funnel HÂLÂ tamamlanmıyor — yalnızca ilerliyor.
-        assertThat(matcher.evaluate(f, "D1", "S1", "Checkout", "appeared", 3000, 0).type())
-                .isEqualTo(FunnelDecision.Type.STEP_ADVANCED);
-        assertThat(store.states).hasSize(1);
-
-        // Tamamlanma, SONRAKİ herhangi bir eventte "crash recovery" dalından geliyor.
-        FunnelDecision completed = matcher.evaluate(f, "D1", "S1", "AlakasizEkran", "appeared", 4000, 0);
+        FunnelDecision completed = matcher.evaluate(f, "D1", "S1", "Checkout", "appeared", 3000, 0);
         assertThat(completed.type()).isEqualTo(FunnelDecision.Type.FUNNEL_COMPLETED);
-        assertThat(completed.reason()).isEqualTo("crash_recovery");
+        assertThat(completed.reason()).isEqualTo("funnel_completed");
         assertThat(completed.stepsCompleted()).isEqualTo(3);
-        assertThat(store.states).isEmpty();
 
-        // VE bu dal dedup anahtarı YAZMIYOR — session_once çok adımlı funnel'da işlemiyor.
-        assertThat(store.visitKeys).isEmpty();
+        // Tamamlanınca durum HEMEN silinir — 6dk cooldown bug'ının fix'i buydu
+        assertThat(store.states).isEmpty();
+        // session_once → oturum bazlı dedup anahtarı yazıldı (düzeltmeden önce YAZILMIYORDU)
+        assertThat(store.visitKeys).containsExactly("funnel_visit_fired:F1:D1:S1");
     }
 
     @Test
-    @DisplayName("son adımdan sonra event gelmezse funnel HİÇ tetiklenmez")
-    void sonAdimdanSonraEventGelmezseTetiklenmez() {
+    @DisplayName("çok adımlı session_once aynı oturumda ikinci kez tetiklenmez")
+    void cokAdimliSessionOnceDedup() {
+        Map<String, Object> f = funnel("session_once", new ArrayList<>(List.of(step("Home"), step("Cart"))));
+
+        matcher.evaluate(f, "D1", "S1", "Home", "appeared", 1000, 0);
+        assertThat(matcher.evaluate(f, "D1", "S1", "Cart", "appeared", 2000, 0).type())
+                .isEqualTo(FunnelDecision.Type.FUNNEL_COMPLETED);
+
+        // Aynı oturumda akış baştan yaşanırsa dedup devreye girer
+        matcher.evaluate(f, "D1", "S1", "Home", "appeared", 3000, 0);
+        FunnelDecision second = matcher.evaluate(f, "D1", "S1", "Cart", "appeared", 4000, 0);
+
+        assertThat(second.type()).isEqualTo(FunnelDecision.Type.SKIPPED_DEDUP);
+        assertThat(store.states).isEmpty();
+    }
+
+    @Test
+    @DisplayName("son adımdan sonra başka event gerekmez — askıda durum kalmaz")
+    void sonAdimdanSonraEventGerekmez() {
         Map<String, Object> f = funnel("session_once", new ArrayList<>(List.of(step("Home"), step("Cart"))));
         matcher.evaluate(f, "D1", "S1", "Home", "appeared", 1000, 0);
-        matcher.evaluate(f, "D1", "S1", "Cart", "appeared", 2000, 0);
 
-        // Kullanıcı uygulamayı burada kapatırsa funnel askıda kalır; insight hiç gitmez.
-        assertThat(store.states).hasSize(1);
-        assertThat(store.states.values().iterator().next().currentStep()).isEqualTo(2);
+        // Düzeltmeden önce burada STEP_ADVANCED dönüyordu ve funnel askıda kalıyordu;
+        // kullanıcı uygulamayı kapatırsa insight hiç gitmiyordu.
+        assertThat(matcher.evaluate(f, "D1", "S1", "Cart", "appeared", 2000, 0).type())
+                .isEqualTo(FunnelDecision.Type.FUNNEL_COMPLETED);
+        assertThat(store.states).isEmpty();
     }
 
     @Test
@@ -217,9 +230,9 @@ class SdkFunnelMatcherTest {
 
         assertThat(matcher.evaluate(f, "D1", "S1", "Cart", "dwell", 2000, 2999).type())
                 .isEqualTo(FunnelDecision.Type.NONE);
-        // Süre koşulu sağlanınca adım ilerler (tamamlanma bir sonraki eventte — yukarıya bak)
+        // Süre koşulu sağlanınca son adım eşleşir ve funnel tamamlanır
         assertThat(matcher.evaluate(f, "D1", "S1", "Cart", "dwell", 2000, 3000).type())
-                .isEqualTo(FunnelDecision.Type.STEP_ADVANCED);
+                .isEqualTo(FunnelDecision.Type.FUNNEL_COMPLETED);
     }
 
     @Test
@@ -249,7 +262,7 @@ class SdkFunnelMatcherTest {
     }
 
     @Test
-    @DisplayName("bozuk durum (adım sayısını aşan currentStep) crash recovery ile tamamlanır")
+    @DisplayName("bozuk durum (funnel adımları kısaltılmış) crash recovery ile tamamlanır")
     void crashRecovery() {
         Map<String, Object> f = funnel("session_once", new ArrayList<>(List.of(step("Home"), step("Cart"))));
         String key = store.stateKey("F1", "D1");
