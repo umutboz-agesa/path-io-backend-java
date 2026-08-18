@@ -12,7 +12,7 @@ Yol haritası: `PathIO_Java_Donusum_Yol_Haritasi.docx` (ana repo kökü).
 | Faz | Kapsam | Durum |
 |-----|--------|-------|
 | 0 | Gradle iskelet, common lib, admin dikey dilimi (apps CRUD), Dockerfile + Jenkinsfile | 🟢 Kod + altyapı tamam, deploy hattı bekliyor |
-| 1 | admin mini-service — kalan 45 endpoint | ⏳ Sırada |
+| 1 | admin mini-service — 51 endpoint | 🟡 **18/51** (apps, screens, payload-templates, deeplink-pages) |
 | 2 | funnel-worker — eventProcessor (Redis Streams → TimescaleDB) | — |
 | 3 | funnel-worker — funnelMatcher (550 satır durum makinesi) | — |
 | 4 | realtime mini-service — WS ağ geçidi + insightEngine | — |
@@ -133,20 +133,29 @@ Bu projenin tek başarı ölçütü, aşağıdakilerin **değişmemesi**:
 4. **Veritabanı şeması** — Drizzle migration'ları ile yönetilir. Hibernate `ddl-auto: none`
    ile çalışır ve şemaya asla dokunmaz.
 
-### Doğrulanmış parite (Faz 0)
+### Doğrulanmış parite
 
-Canlı Node (`:3000`) ve Java (`:8080`) aynı DB üzerinde karşılaştırıldı — 6 uç,
-**bayt bayt aynı yanıt**:
+Canlı Node (`:3000`) ve Java (`:8080`) aynı DB üzerinde karşılaştırıldı.
+
+**apps (6 uç)** — hepsi bayt bayt aynı:
 
 | Uç | Sonuç |
 |----|-------|
 | `GET /apps` (+ page/limit/search varyantları) | ✅ aynı |
-| `GET /apps/{id}` | ✅ aynı |
-| `GET /apps/{id}/sdk-config` | ✅ aynı |
-| `GET /apps/{bilinmeyen}` → 404 gövdesi | ✅ aynı |
+| `GET /apps/{id}` · `sdk-config` · 404 gövdesi | ✅ aynı |
 | `POST /apps` → 201, alan kümesi, 64 karakter hex apiKey | ✅ aynı |
-| `PATCH /apps/{id}` → 200 | ✅ aynı |
-| `DELETE /apps/{id}` → 204, boş gövde, sonrasında 404 | ✅ aynı |
+| `PATCH /apps/{id}` → 200 · `DELETE` → 204 + sonrasında 404 | ✅ aynı |
+
+**screens (3) · payload-templates (5) · deeplink-pages (4)**:
+
+| Uç | Sonuç |
+|----|-------|
+| `GET /apps/{id}/screens` — düz liste + kanonik gruplama | ✅ aynı |
+| `PATCH /apps/{id}/screens/{sid}` → `{"ok":true}`, 4 doğrulama senaryosu | ✅ aynı |
+| `DELETE /apps/{id}/screens/{sid}` → 204, kayıt yoksa da 404 atmaz | ✅ aynı |
+| payload-templates CRUD (5 uç) + `App not found` / `Template not found` | ✅ aynı |
+| deeplink-pages CRUD (4 uç) + Zod default'ları (`ios`, `[]`, `true`) | ✅ aynı |
+| Tanımsız route → Fastify'ın 404 gövdesi (alan sırası dahil) | ✅ aynı |
 
 ### Bilinen sapmalar
 
@@ -154,7 +163,20 @@ Canlı Node (`:3000`) ve Java (`:8080`) aynı DB üzerinde karşılaştırıldı
 |------|-------|
 | Doğrulama hatası `details` alanı | Node'da Zod `err.errors`, Java'da Bean Validation ihlalleri. `code` ve `message` aynı (`VALIDATION_ERROR` / `Validation failed`), `details` içeriği farklı. Portal bu alanı göstermiyor; contract test'te karşılaştırma dışı. |
 | `created_at` / `updated_at` kaynağı | Node'da kolon DEFAULT `now()` (DB saati), Java'da JPA insert öncesi `Instant.now()` (uygulama saati). Ayrı host'ta saat sapması olursa fark oluşur — cutover öncesi doğrulanmalı. |
-| Liste sıralaması | İki tarafta da `ORDER BY` yok; sıra Postgres'in fiziksel sırasıdır. Parite korunuyor ama ikisi de deterministik değil. |
+| Liste sıralaması (`/apps`) | İki tarafta da `ORDER BY` yok; sıra Postgres'in fiziksel sırasıdır. Parite korunuyor ama ikisi de deterministik değil. |
+
+### Bilerek taşınan hata
+
+`GET /apps/{id}/screens` yanıtındaki grup `lastSeenAt` değeri **yanlış** — ve Java tarafında
+da yanlış üretiliyor. Node'daki ifade `members.map(m => m.lastSeenAt).sort().at(-1)`;
+JavaScript'te karşılaştırıcısız `sort()` elemanları string'e çevirir, `Date` de
+`"Mon Aug 17 2026 …"` biçimine dönüşür. Sonuç: en yeni tarih değil, **haftanın gün adı
+alfabetik olarak en sonda olan** seçilir ("Fri" &lt; "Mon" &lt; "Sat" &lt; "Sun" &lt; "Thu").
+
+Düzeltilmedi çünkü bu proje davranışsal parite üzerine kurulu: burada düzeltmek gölge trafik
+karşılaştırmasında sürekli fark üretir ve gerçek regresyonları gizler.
+`ScreenServiceGroupingTest` bu davranışı kilitliyor; `docs/BACKLOG.md`'de cutover sonrası
+İKİ sistemde birlikte düzeltilmek üzere kayıtlı.
 
 **Zaman damgası formatı:** Postgres `timestamptz` mikrosaniye tutar, Node'un `pg`
 sürücüsü milisaniyeye kırpar. Java'da `InstantMillisSerializer` aynı kırpmayı yapar ve

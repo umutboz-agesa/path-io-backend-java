@@ -1,5 +1,6 @@
 package tr.com.agesa.appinsight.admin.web;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -10,9 +11,11 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import tr.com.agesa.appinsight.common.error.ApiErrorResponse;
 import tr.com.agesa.appinsight.common.error.AppException;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -70,6 +73,26 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         return ResponseEntity.status(400)
                 .body(ApiErrorResponse.of("BAD_REQUEST", "Bad request", null));
+    }
+
+    /**
+     * Tanımsız route — Fastify'ın kendi 404'ü ile aynı gövde.
+     *
+     * <p>Bu gövde {@code AppError} formatında DEĞİL ({@code error} bir string, sarmalayıcı obje
+     * değil) çünkü Fastify kendi varsayılan 404'ünü hata yakalayıcıya uğratmadan üretiyor.
+     * Tuhaf görünse de portal ve SDK'nın gördüğü şekil budur.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoRoute(NoResourceFoundException ex,
+                                                             HttpServletRequest request) {
+        String route = request.getMethod() + ":" + request.getRequestURI();
+        // Alan SIRASI da korunur: Fastify message → error → statusCode sırasıyla yazıyor.
+        // Map.of sırayı garanti etmediği için LinkedHashMap'e tek tek konuyor.
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("message", "Route " + route + " not found");
+        body.put("error", "Not Found");
+        body.put("statusCode", 404);
+        return ResponseEntity.status(404).body(body);
     }
 
     @ExceptionHandler(Exception.class)
