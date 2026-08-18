@@ -11,6 +11,11 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
+    // Pub/Sub abonelik erişim testi (integrations/:id/test ucu).
+    // Faz 5'te gcl-bridge servisi de aynı istemciyi kullanacak.
+    implementation platform('com.google.cloud:libraries-bom:26.44.0')
+    implementation 'com.google.cloud:google-cloud-pubsub'
+
     runtimeOnly 'org.postgresql:postgresql'
 
     developmentOnly 'org.springframework.boot:spring-boot-devtools'

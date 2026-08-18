@@ -12,7 +12,7 @@ Yol haritası: `PathIO_Java_Donusum_Yol_Haritasi.docx` (ana repo kökü).
 | Faz | Kapsam | Durum |
 |-----|--------|-------|
 | 0 | Gradle iskelet, common lib, admin dikey dilimi (apps CRUD), Dockerfile + Jenkinsfile | 🟢 Kod + altyapı tamam, deploy hattı bekliyor |
-| 1 | admin mini-service — 51 endpoint | 🟡 **30/51** — kalan: funnels (8), insights (8), integrations (5) |
+| 1 | admin mini-service — 51 endpoint | 🟡 **35/51** — kalan: funnels (8), insights (8) |
 | 2 | funnel-worker — eventProcessor (Redis Streams → TimescaleDB) | — |
 | 3 | funnel-worker — funnelMatcher (550 satır durum makinesi) | — |
 | 4 | realtime mini-service — WS ağ geçidi + insightEngine | — |
@@ -168,6 +168,21 @@ Canlı Node (`:3000`) ve Java (`:8080`) aynı DB üzerinde karşılaştırıldı
 | gcl-queries CRUD + hits (6 uç, ham dizi + PUT + farklı 404 gövdesi) | ✅ aynı |
 | `GET /apps/{id}/members` (+ `?screen=`) | ✅ aynı |
 
+**integrations (5)**:
+
+| Uç | Sonuç |
+|----|-------|
+| `GET` liste — ham dizi, credentials maskeli (alan sırası dahil) | ✅ aynı |
+| `POST` → 201 · aynı tip ikinci kez → 409 | ✅ aynı |
+| `PUT` (kısmi güncelleme, `status`→pending, `lastError`→null) · `DELETE` → 204 | ✅ aynı |
+| Doğrulama: 8 senaryo (eksik/hatalı config ve credentials, tip enum) | ✅ aynı |
+| `POST /test` — eksik alan dalları, `status`/`lastError` yazımı | ✅ aynı |
+
+**Credential maskeleme:** `private_key` → `••••••••`, `private_key_id` → ilk 8 karakter +
+`••••••••`. Node bunu destructuring ile yaptığı için maskelenen iki alan **nesnenin sonuna
+taşınıyor**; alan sırası JSON'da göründüğü için bu davranış da birebir üretildi.
+Ham servis hesabı anahtarı hiçbir uçtan dışarı çıkmıyor.
+
 #### Zaman serisi uçlarında üç tuzak
 
 Bu uçlar Node'da drizzle'ı atlayıp ham `pg` sorgusu kullanıyor; bu üç davranış oradan geliyor:
@@ -192,6 +207,8 @@ sıralamak aynı saniyedeki satırların sırasını değiştiriyordu.
 | Doğrulama hatası `details` alanı | Node'da Zod `err.errors`, Java'da Bean Validation ihlalleri. `code` ve `message` aynı (`VALIDATION_ERROR` / `Validation failed`), `details` içeriği farklı. Portal bu alanı göstermiyor; contract test'te karşılaştırma dışı. |
 | `created_at` / `updated_at` kaynağı | Node'da kolon DEFAULT `now()` (DB saati), Java'da JPA insert öncesi `Instant.now()` (uygulama saati). Ayrı host'ta saat sapması olursa fark oluşur — cutover öncesi doğrulanmalı. |
 | Liste sıralaması (`/apps`) | İki tarafta da `ORDER BY` yok; sıra Postgres'in fiziksel sırasıdır. Parite korunuyor ama ikisi de deterministik değil. |
+| `POST /integrations/{id}/test` hata **metni** | Yapı aynı (`{"ok":false,"error":…}`), `status`/`lastError` yazımı aynı; ama metnin kendisi istemci kütüphanesinden geliyor. Node'un `@google-cloud/pubsub`'ı 60 sn yeniden deneyip uzun bir gRPC yığını döndürüyor, Java istemcisi hemen `Invalid PKCS#8 data.` diyor. Aynı cümleyi üretmek mümkün değil. |
+| Credential doğrulamada e-posta/URL uç örnekleri | Zod'un `.email()` / `.url()` regex'leri ile Java'daki basit kontroller tuhaf ama teknik olarak geçerli adreslerde ayrışabilir. Gerçek servis hesabı anahtarlarında fark üretmez. |
 
 ### Bilerek taşınan hata
 
