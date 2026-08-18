@@ -2,13 +2,23 @@ package tr.com.agesa.appinsight.admin.service;
 
 import org.springframework.stereotype.Component;
 import tr.com.agesa.appinsight.admin.client.dto.AppDto;
+import tr.com.agesa.appinsight.admin.client.dto.AppMemberDto;
 import tr.com.agesa.appinsight.admin.client.dto.DeeplinkPageDto;
+import tr.com.agesa.appinsight.admin.client.dto.DeviceDto;
+import tr.com.agesa.appinsight.admin.client.dto.GclQueryDto;
+import tr.com.agesa.appinsight.admin.client.dto.GclQueryHitDto;
 import tr.com.agesa.appinsight.admin.client.dto.ScreenDto;
+import tr.com.agesa.appinsight.admin.client.dto.SessionDto;
 import tr.com.agesa.appinsight.admin.client.dto.TemplateDto;
 import tr.com.agesa.appinsight.admin.domain.AppEntity;
+import tr.com.agesa.appinsight.admin.domain.AppMemberEntity;
 import tr.com.agesa.appinsight.admin.domain.DeeplinkPageEntity;
+import tr.com.agesa.appinsight.admin.domain.DeviceEntity;
+import tr.com.agesa.appinsight.admin.domain.GclQueryEntity;
+import tr.com.agesa.appinsight.admin.domain.GclQueryHitEntity;
 import tr.com.agesa.appinsight.admin.domain.PayloadTemplateEntity;
 import tr.com.agesa.appinsight.admin.domain.ScreenEntity;
+import tr.com.agesa.appinsight.admin.domain.SessionEntity;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -27,6 +37,73 @@ public class AppMapper {
                 e.isActive(),
                 e.getCreatedAt(),
                 e.getUpdatedAt()
+        );
+    }
+
+    public DeviceDto toDto(DeviceEntity e) {
+        return new DeviceDto(
+                e.getId().toString(),
+                e.getAppId().toString(),
+                e.getDeviceId(),
+                e.getPlatform(),
+                e.getOsVersion(),
+                e.getAppVersion(),
+                e.getModel(),
+                e.getLastSeen(),
+                e.getMetadata()
+        );
+    }
+
+    public SessionDto toDto(SessionEntity e) {
+        return new SessionDto(
+                e.getId(),
+                e.getAppId().toString(),
+                e.getDeviceId(),
+                e.getPlatform(),
+                e.getAppVersion(),
+                e.getOsVersion(),
+                e.getModel(),
+                e.getStartedAt(),
+                e.getEndedAt()
+        );
+    }
+
+    public AppMemberDto toDto(AppMemberEntity e) {
+        return new AppMemberDto(
+                e.getId().toString(),
+                e.getAppId().toString(),
+                e.getKey(),
+                e.getLabel(),
+                e.getElementType(),
+                e.getScreen(),
+                e.getPlatform(),
+                e.getLastRegisteredAt(),
+                e.getCreatedAt()
+        );
+    }
+
+    public GclQueryDto toDto(GclQueryEntity e) {
+        return new GclQueryDto(
+                e.getId().toString(),
+                e.getAppId().toString(),
+                e.getName(),
+                e.getDescription(),
+                e.getExpression(),
+                e.isActive(),
+                e.getCreatedAt(),
+                e.getUpdatedAt()
+        );
+    }
+
+    public GclQueryHitDto toDto(GclQueryHitEntity e) {
+        return new GclQueryHitDto(
+                e.getId().toString(),
+                e.getQueryId().toString(),
+                e.getAppId().toString(),
+                e.getDeviceId(),
+                e.getTs(),
+                e.getEventData(),
+                e.getCreatedAt()
         );
     }
 

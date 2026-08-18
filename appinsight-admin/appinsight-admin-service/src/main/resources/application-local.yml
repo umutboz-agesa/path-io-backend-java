@@ -25,6 +25,10 @@ appinsight:
     connection-timeout: 5000
     idle-timeout: 30000
     pool-name: appinsight-timescale-pool
+    # Zaman damgaları SQL içinde ::text ile render ediliyor; render oturum saat dilimini
+    # kullanır. PgJDBC bağlanırken oturumu JVM'in saat dilimine ayarlar (+03) — Node ise
+    # sunucu varsayılanı UTC ile çalışıyor. Parite için UTC'ye sabitleniyor.
+    connection-init-sql: SET TIME ZONE 'UTC'
 
 # Node 3000'de duruyor; çakışmamak için Java 8080'de.
 server:

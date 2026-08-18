@@ -12,7 +12,7 @@ Yol haritası: `PathIO_Java_Donusum_Yol_Haritasi.docx` (ana repo kökü).
 | Faz | Kapsam | Durum |
 |-----|--------|-------|
 | 0 | Gradle iskelet, common lib, admin dikey dilimi (apps CRUD), Dockerfile + Jenkinsfile | 🟢 Kod + altyapı tamam, deploy hattı bekliyor |
-| 1 | admin mini-service — 51 endpoint | 🟡 **18/51** (apps, screens, payload-templates, deeplink-pages) |
+| 1 | admin mini-service — 51 endpoint | 🟡 **30/51** — kalan: funnels (8), insights (8), integrations (5) |
 | 2 | funnel-worker — eventProcessor (Redis Streams → TimescaleDB) | — |
 | 3 | funnel-worker — funnelMatcher (550 satır durum makinesi) | — |
 | 4 | realtime mini-service — WS ağ geçidi + insightEngine | — |
@@ -156,6 +156,34 @@ Canlı Node (`:3000`) ve Java (`:8080`) aynı DB üzerinde karşılaştırıldı
 | payload-templates CRUD (5 uç) + `App not found` / `Template not found` | ✅ aynı |
 | deeplink-pages CRUD (4 uç) + Zod default'ları (`ios`, `[]`, `true`) | ✅ aynı |
 | Tanımsız route → Fastify'ın 404 gövdesi (alan sırası dahil) | ✅ aynı |
+
+**devices (5) · gcl-queries (6) · members (1)**:
+
+| Uç | Sonuç |
+|----|-------|
+| `GET /apps/{id}/activity` — cihaz başına son event (`DISTINCT ON`) | ✅ aynı |
+| `GET /apps/{id}/activity?deviceId=&limit=&offset=` | ✅ aynı |
+| `GET /apps/{id}/devices` · `sessions` · `devices/{d}/sessions` | ✅ aynı |
+| `GET /apps/{id}/sessions/{sid}` — 12 oturum × 2 liste, sıra dahil | ✅ aynı |
+| gcl-queries CRUD + hits (6 uç, ham dizi + PUT + farklı 404 gövdesi) | ✅ aynı |
+| `GET /apps/{id}/members` (+ `?screen=`) | ✅ aynı |
+
+#### Zaman serisi uçlarında üç tuzak
+
+Bu uçlar Node'da drizzle'ı atlayıp ham `pg` sorgusu kullanıyor; bu üç davranış oradan geliyor:
+
+1. **Zaman damgası ISO değil.** drizzle-orm, `pg` sürücüsünün timestamptz ayrıştırıcısını global
+   olarak değiştiriyor; ham sorgu sonucu Postgres'in kendi metni oluyor:
+   `2026-04-25 20:29:42.499+00` — `T`/`Z` yok, sondaki sıfırlar kırpılmış. Java'da aynı çıktı
+   için render Postgres'e bırakıldı (`::text`) ve **oturum saat dilimi UTC'ye sabitlendi**
+   (`connection-init-sql`), yoksa PgJDBC JVM saat dilimini kullanıp `+03` yazardı.
+2. **`COUNT`/`SUM` sonuçları string.** `pg` sürücüsü `bigint` değerlerini JavaScript'te string
+   döndürür (güvenli tamsayı sınırı). Yani `"views":"3"`, `3` değil.
+3. **Alan adları snake_case.** Ham SQL sonucu olduğu gibi JSON'a çevriliyor; `device_id`,
+   `screen_name`… Tipli DTO'ya çevirmek portalin okuduğu adları kaydırırdı.
+
+`ORDER BY` da `::text` alias'ına değil, gerçek `timestamptz` kolonuna bakmalı — alias üzerinden
+sıralamak aynı saniyedeki satırların sırasını değiştiriyordu.
 
 ### Bilinen sapmalar
 

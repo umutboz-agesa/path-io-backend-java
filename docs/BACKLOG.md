@@ -20,6 +20,36 @@ aynı) — yani deploy hattının kod tarafı hazır.
 
 ---
 
+## ⚠️ Şema kayması — migration'larda olmayan kolon
+
+`screen_events` tablosunda canlı veritabanında **var olan ama hiçbir migration'da bulunmayan**
+nesneler tespit edildi:
+
+| Nesne | Durum |
+|-------|-------|
+| `session_id text` kolonu | Canlı DB'de var, migration yok |
+| `idx_screen_events_session` | Canlı DB'de var, migration yok |
+| `idx_screen_events_screen` | Canlı DB'de var, migration yok |
+
+**Neden önemli:** `activity` ve `sessions/:id` uçlarının sorguları `se.session_id` kullanıyor.
+Migration'lardan sıfırdan kurulan bir ortamda (test/prod ilk kurulum, Testcontainers'lı CI)
+bu kolon oluşmaz ve **iki uç da 500 verir**. Şu an yalnızca geliştirici makinesinde çalışıyor
+olmasının sebebi kolonun elle eklenmiş olması.
+
+**Önerilen düzeltme** — Node repo'suna idempotent bir migration:
+
+```sql
+-- 0013_screen_events_session_id.sql
+ALTER TABLE screen_events ADD COLUMN IF NOT EXISTS session_id text;
+CREATE INDEX IF NOT EXISTS idx_screen_events_session ON screen_events (session_id, "time" DESC);
+CREATE INDEX IF NOT EXISTS idx_screen_events_screen  ON screen_events (app_id, screen_name, "time" DESC);
+```
+
+Mevcut ortamlarda hiçbir şey değiştirmez (kolon zaten var), yeni ortamlarda doğru şemayı kurar.
+Node backend'ine dokunmama kararı gereği **uygulanmadı** — onay bekliyor.
+
+---
+
 ## Teknik borç / riskler
 
 | # | Konu | Risk | Karar |
