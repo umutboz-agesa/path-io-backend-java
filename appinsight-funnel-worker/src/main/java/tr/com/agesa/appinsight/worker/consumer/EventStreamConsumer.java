@@ -90,12 +90,28 @@ public class EventStreamConsumer {
         String key = RedisKeys.events(appId);
         try {
             redis.opsForStream().createGroup(key, ReadOffset.from("0"), properties.consumerGroup());
+            log.info("Consumer group oluşturuldu: {} / {}", key, properties.consumerGroup());
         } catch (RedisSystemException e) {
-            // BUSYGROUP: grup zaten var — beklenen durum, sessiz geç.
-            if (e.getMessage() == null || !e.getMessage().contains("BUSYGROUP")) {
-                log.warn("Consumer group oluşturulamadı: {} ({})", key, e.getMessage());
+            // BUSYGROUP = grup zaten var; beklenen durum, sessiz geçilmeli.
+            // Spring sarmalayıcısının kendi mesajı "Error in execution" olduğu için
+            // BUSYGROUP metni yalnız KÖK nedende bulunur — üst mesaja bakmak yanıltıcıydı.
+            if (!rootMessageContains(e, "BUSYGROUP")) {
+                log.warn("Consumer group oluşturulamadı: {} ({})", key, rootMessage(e));
             }
         }
+    }
+
+    private static boolean rootMessageContains(Throwable t, String needle) {
+        String message = rootMessage(t);
+        return message != null && message.contains(needle);
+    }
+
+    private static String rootMessage(Throwable t) {
+        Throwable root = t;
+        while (root.getCause() != null) {
+            root = root.getCause();
+        }
+        return root.getMessage();
     }
 
     private void loop() {

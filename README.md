@@ -13,7 +13,7 @@ Yol haritası: `PathIO_Java_Donusum_Yol_Haritasi.docx` (ana repo kökü).
 |-----|--------|-------|
 | 0 | Gradle iskelet, common lib, admin dikey dilimi (apps CRUD), Dockerfile + Jenkinsfile | 🟢 Kod + altyapı tamam, deploy hattı bekliyor |
 | 1 | admin mini-service — 51 endpoint | 🟢 **48/51** — kalan 3 uç WS'e bağlı, Faz 4'te |
-| 2 | funnel-worker — eventProcessor (Redis Streams → TimescaleDB) | 🟡 Tüketici + ingest + filterEvaluator çalışıyor (gölge modda) |
+| 2 | funnel-worker — eventProcessor (Redis Streams → TimescaleDB) | 🟢 Tamam — canlı event ile parite doğrulandı |
 | 3 | funnel-worker — funnelMatcher (550 satır durum makinesi) | — |
 | 4 | realtime mini-service — WS ağ geçidi + insightEngine | — |
 | 5 | gcl-bridge — Pub/Sub → Redis | — |
@@ -115,6 +115,25 @@ ve canlı sistem bozulurdu. Cutover'da `consumer-group: event-processors`,
 
 **Eksik:** portal WS'ine `live_event` yayını — realtime mini-service'i (Faz 4) bekliyor.
 Gölge modda zaten yayın yapılmamalı (portal çift kayıt görürdü).
+
+### Faz 2 parite doğrulaması (canlı event)
+
+Redis stream'ine sentetik bir ekran eventi yazıldı; Node ve Java aynı mesajı **ayrı consumer
+group'lardan** okuyup işledi:
+
+| Ölçüm | Sonuç |
+|---|---|
+| `screen_events` satır sayısı | 2 (her işlemciden bir tane) |
+| Satırların farklı içerik sayısı | **1** → dokuz kolonun tamamı özdeş |
+| `screens.event_count` | 2 → upsert mantığı da aynı |
+| Node'un consumer group'u | bozulmadı, mesajı ayrıca aldı (lag 0) |
+
+Test verisi sonrasında temizlendi.
+
+**Yan bulgu:** doğrulama sırasında Node'un event processor'ının ~12 saattir tüketmediği
+görüldü (`event-processors` grubunda 167 mesaj birikmişti, log 7 saattir yazılmıyordu).
+Platform yeniden başlatılınca backlog işlendi. Uzun süre ayakta kalan ts-node-dev sürecinin
+worker döngüsü sessizce ölebiliyor — canlıda izlenmesi gereken bir davranış.
 
 Her mini-service `client` + `service` alt projesinden oluşur. `client` yalnızca
 arayüz ve DTO içerir; iş mantığı ve repository barındırmaz.
