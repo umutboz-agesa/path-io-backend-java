@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: appinsight-funnel-worker
+
+server:
+  port: ${SERVER_PORT:8090}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+appinsight:
+  worker:
+    # GÖLGE MOD varsayılan: ayrı consumer group + yazma yok.
+    # Node'un grubu 'event-processors' / tüketicisi 'worker-main' — aynı isimle
+    # başlatmak Node'un mesajlarını çalar ve canlı sistemi bozar.
+    consumer-group: event-processors-shadow
+    consumer-name: worker-shadow
+    dry-run: true
+    block-ms: 2000
+    app-ids: []
+
+logging:
+  level:
+    tr.com.agesa.appinsight: INFO

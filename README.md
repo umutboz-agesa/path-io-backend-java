@@ -13,7 +13,7 @@ Yol haritası: `PathIO_Java_Donusum_Yol_Haritasi.docx` (ana repo kökü).
 |-----|--------|-------|
 | 0 | Gradle iskelet, common lib, admin dikey dilimi (apps CRUD), Dockerfile + Jenkinsfile | 🟢 Kod + altyapı tamam, deploy hattı bekliyor |
 | 1 | admin mini-service — 51 endpoint | 🟢 **48/51** — kalan 3 uç WS'e bağlı, Faz 4'te |
-| 2 | funnel-worker — eventProcessor (Redis Streams → TimescaleDB) | — |
+| 2 | funnel-worker — eventProcessor (Redis Streams → TimescaleDB) | 🟡 Tüketici + ingest + filterEvaluator çalışıyor (gölge modda) |
 | 3 | funnel-worker — funnelMatcher (550 satır durum makinesi) | — |
 | 4 | realtime mini-service — WS ağ geçidi + insightEngine | — |
 | 5 | gcl-bridge — Pub/Sub → Redis | — |
@@ -31,7 +31,7 @@ Yol haritasındaki Faz 0 tanımına göre:
 | **13 tablonun JPA entity + jsonb mapping'i** | ✅ **13/13**, gerçek şemaya karşı test edildi |
 | PostgreSQL bağlantısı | ✅ |
 | Redis bağlantısı | ✅ yaz/oku testiyle doğrulandı |
-| TimescaleDB ayrı pool | ✅ ayrı Hikari havuzu + hypertable sorgusu doğrulandı |
+| TimescaleDB ayrı pool | ✅ ayrı Hikari havuzu — başlangıç log'unda **iki havuzun da** açıldığı doğrulandı (bkz. aşağıdaki not) |
 | Dockerfile | ✅ image build edildi, container ayağa kalktı, **yanıtı Node ile bayt bayt aynı** |
 | Jenkinsfile | ⚠️ yazıldı, **çalıştırılmadı** — Jenkins erişimi gerekiyor |
 | External config (Bitbucket) | 🟡 profil yapısı var, external config bağlanmadı |
@@ -39,6 +39,15 @@ Yol haritasındaki Faz 0 tanımına göre:
 
 Kalan üç madde de **altyapı erişimi** istiyor (Jenkins, Bitbucket external config, OpenShift) —
 kod tarafında Faz 0'da yapılacak bir şey kalmadı.
+
+> **Düzeltildi (Faz 2'de fark edildi):** Faz 0'da "ayrı Timescale havuzu kuruldu" denmişti ama
+> aslında **tek havuz** vardı. Spring Boot'un `DataSourceAutoConfiguration`'ı
+> `@ConditionalOnMissingBean(DataSource.class)` ile çalışıyor; ikinci bir `DataSource` bean'i
+> tanımlandığı anda ana veri kaynağını hiç oluşturmuyor ve JPA sessizce Timescale havuzuna
+> bağlanıyor. Başlangıç log'unda yalnız `appinsight-timescale-pool` açıldığı görülünce
+> yakalandı. `DataSourceConfig` ile ana havuz artık açıkça `@Primary` olarak tanımlanıyor;
+> iki servis de iki havuzla başlıyor. Ders: "iki havuz var" iddiası ancak log'da iki
+> `Starting...` satırı görülerek doğrulanır.
 
 ### Entity eşleme doğrulaması
 
@@ -79,10 +88,33 @@ Migration'lar `src/test/resources/db/migrations` altında kopya tutulur;
 ```
 path-io-backend-java/
 ├── appinsight-common/                    ortak: hata tipleri, Redis anahtarları, JSON parite
-└── appinsight-admin/
-    ├── appinsight-admin-client/          Feign arayüzü + DTO'lar (başka servisler dependency alır)
-    └── appinsight-admin-service/         controller → service → repository + Dockerfile + Jenkinsfile
+├── appinsight-admin/
+│   ├── appinsight-admin-client/          Feign arayüzü + DTO'lar (başka servisler dependency alır)
+│   └── appinsight-admin-service/         controller → service → repository + Dockerfile + Jenkinsfile
+└── appinsight-funnel-worker/             Redis Streams tüketicisi + ingest + filtre motoru
 ```
+
+### Worker gölge (shadow) modu
+
+Worker **varsayılan olarak gölge modda** başlar: ayrı consumer group + `dry-run: true`.
+
+| | Node (canlı) | Java (gölge) |
+|---|---|---|
+| Consumer group | `event-processors` | `event-processors-shadow` |
+| Tüketici adı | `worker-main` | `worker-shadow` |
+| Yazma | TimescaleDB + screens + devices | **yok** (dry-run) |
+
+Redis Streams'te her consumer group mesajların **tümünü** alır; ayrı grup kullanmak Java'nın
+Node'un mesajlarını çalmasını engeller. Aynı isim kullanılsaydı her mesaj yalnız birine giderdi
+ve canlı sistem bozulurdu. Cutover'da `consumer-group: event-processors`,
+`consumer-name: worker-main` ve `dry-run: false` yapılır.
+
+```bash
+./gradlew :appinsight-funnel-worker:bootRun --args='--spring.profiles.active=local'   # :8090
+```
+
+**Eksik:** portal WS'ine `live_event` yayını — realtime mini-service'i (Faz 4) bekliyor.
+Gölge modda zaten yayın yapılmamalı (portal çift kayıt görürdü).
 
 Her mini-service `client` + `service` alt projesinden oluşur. `client` yalnızca
 arayüz ve DTO içerir; iş mantığı ve repository barındırmaz.

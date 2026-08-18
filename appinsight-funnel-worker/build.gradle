@@ -1,0 +1,16 @@
+plugins {
+    id 'org.springframework.boot'
+}
+
+dependencies {
+    implementation project(':appinsight-common')
+
+    // Worker HTTP servis etmiyor ama actuator'ın /actuator/health ucu OpenShift
+    // readiness/liveness probe'ları için gerekli — bu yüzden web starter'ı var.
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    runtimeOnly 'org.postgresql:postgresql'
+}

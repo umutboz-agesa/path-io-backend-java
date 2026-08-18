@@ -12,5 +12,8 @@ include 'appinsight-common'
 
 // Mini-service'ler. Her biri client (Feign arayüzü + DTO) + service (controller-service-repository)
 // alt projelerinden oluşur.
+// Redis Streams tüketicileri: ekran eventlerini TimescaleDB'ye yazar, funnel eşleştirir.
+include 'appinsight-funnel-worker'
+
 include 'appinsight-admin:appinsight-admin-client'
 include 'appinsight-admin:appinsight-admin-service'

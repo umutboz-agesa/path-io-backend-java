@@ -36,23 +36,48 @@ aynı) — yani deploy hattının kod tarafı hazır.
 
 ---
 
-## ⚠️ Şema kayması — migration'larda olmayan kolon
+## 🔴 Şema kayması — migration'lar gerçek şemayı üretmiyor
 
-`screen_events` tablosunda canlı veritabanında **var olan ama hiçbir migration'da bulunmayan**
-nesneler tespit edildi:
+**Faz 2'de kesişti** (eventProcessor `screen_events`'e `session_id` yazıyor) ve incelenince
+sorun tek kolondan çok daha büyük çıktı.
 
-| Nesne | Durum |
-|-------|-------|
-| `session_id text` kolonu | Canlı DB'de var, migration yok |
-| `idx_screen_events_session` | Canlı DB'de var, migration yok |
-| `idx_screen_events_screen` | Canlı DB'de var, migration yok |
+### Bulgu 1 — Drizzle journal'ı 13 migration'ın yalnız 5'ini izliyor
 
-**Neden önemli:** `activity` ve `sessions/:id` uçlarının sorguları `se.session_id` kullanıyor.
-Migration'lardan sıfırdan kurulan bir ortamda (test/prod ilk kurulum, Testcontainers'lı CI)
-bu kolon oluşmaz ve **iki uç da 500 verir**. Şu an yalnızca geliştirici makinesinde çalışıyor
-olmasının sebebi kolonun elle eklenmiş olması.
+`migrate.ts` drizzle'ın migrator'ını kullanıyor; migrator **`meta/_journal.json`'daki kayıtları**
+uygular, klasördeki .sql dosyalarını değil.
 
-**Önerilen düzeltme** — Node repo'suna idempotent bir migration:
+| | Sayı |
+|---|---|
+| Klasördeki .sql dosyası | 13 |
+| Journal'da kayıtlı | 5 |
+| Veritabanına uygulanmış (`drizzle.__drizzle_migrations`) | 4 |
+
+İzlenmeyen 8 migration: `0004_funnel_expires_at`, `0005_history_tracking`,
+`0006_funnel_trigger_mode`, `0007_deeplink_pages`, `0009_gcl_queries`,
+`0010_insight_target_screens`, `0011_insight_gcl_data_step`, `0012_app_members`.
+
+**Sonuç:** sıfır bir veritabanında `npm run db:migrate` çalıştırıldığında ortaya çıkan şemada
+`funnels.expires_at`/`starts_at`/`trigger_mode`, `deeplink_pages`, `gcl_queries`,
+`gcl_query_hits`, `app_members`, `insights.target_screens`, `insights.gcl_data_step`
+**bulunmaz**. Yani test/prod ilk kurulumu bozuk şema üretir.
+
+### Bulgu 2 — Hiçbir dosyada olmayan nesneler
+
+`screen_events.session_id` kolonu ve `idx_screen_events_session` / `idx_screen_events_screen`
+index'leri canlı DB'de var ama **hiçbir .sql dosyasında yok** — tamamen elle eklenmişler.
+`activity` ve `sessions/:id` uçları bu kolona bağlı.
+
+### Neden şimdiye kadar fark edilmedi
+
+Geliştirici makinesindeki veritabanı elle tamamlanmış. Java tarafındaki `EntityMappingIT` de
+sorunu maskeliyordu: journal'ı atlayıp 13 .sql dosyasını **doğrudan** çalıştırıyor, yani
+gerçek migration yolundan daha eksiksiz bir şema kuruyor.
+
+### Önerilen düzeltme (Node repo'su — ONAY BEKLİYOR)
+
+1. Eksik 8 migration için journal kayıtlarını ekle **veya** hepsini kapsayan idempotent tek
+   bir baseline migration yaz.
+2. Dosyası hiç olmayan nesneler için:
 
 ```sql
 -- 0013_screen_events_session_id.sql
@@ -61,8 +86,10 @@ CREATE INDEX IF NOT EXISTS idx_screen_events_session ON screen_events (session_i
 CREATE INDEX IF NOT EXISTS idx_screen_events_screen  ON screen_events (app_id, screen_name, "time" DESC);
 ```
 
-Mevcut ortamlarda hiçbir şey değiştirmez (kolon zaten var), yeni ortamlarda doğru şemayı kurar.
-Node backend'ine dokunmama kararı gereği **uygulanmadı** — onay bekliyor.
+3. Doğrulama: boş bir veritabanında `db:migrate` çalıştırıp şemayı canlı DB ile karşılaştır.
+
+Mevcut ortamlarda hiçbir şey değişmez (nesneler zaten var). Node backend'ine dokunmama kararı
+gereği **uygulanmadı**.
 
 ---
 

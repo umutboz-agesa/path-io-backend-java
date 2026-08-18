@@ -1,0 +1,40 @@
+# Yerel geliştirme — Node platformunun docker-compose'u ile AYNI Postgres/Redis.
+# Node worker'ı çalışırken bu servis de açılabilir: ayrı consumer group kullandığı için
+# mesajları çalmaz, dry-run açık olduğu için hiçbir yere yazmaz.
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/insight_platform
+    username: insight
+    password: password
+    hikari:
+      maximum-pool-size: 5
+      pool-name: appinsight-worker-pool
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+appinsight:
+  timescale:
+    jdbc-url: jdbc:postgresql://localhost:5432/insight_platform
+    username: insight
+    password: password
+    maximum-pool-size: 10
+    pool-name: appinsight-worker-timescale-pool
+    connection-init-sql: SET TIME ZONE 'UTC'
+
+  worker:
+    app-ids:
+      - 737fb2df-6812-468d-9f70-ca1e70fed76f
+      - c8cb9007-a7ed-4e6b-99c4-59b6031d9d43
+      - fd289f8d-8ce3-4bbe-a193-5fdf32153a99
+      - 164e1f56-7c40-4079-84af-5864c908678a
+      - 98229668-2874-44fd-9409-3881a0e2fa7b
+
+server:
+  port: 8090
+
+logging:
+  level:
+    tr.com.agesa.appinsight: DEBUG
