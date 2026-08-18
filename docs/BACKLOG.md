@@ -4,6 +4,22 @@ Fazlar ilerlerken kenara konan, unutulmaması gereken maddeler.
 
 ---
 
+## Faz 1'den kalanlar — WebSocket bekliyor (Faz 4)
+
+Admin servisinde **48/51** uç yazıldı. Kalan üçü de bağlı SDK'lara doğrudan WS mesajı
+gönderdiği için realtime mini-service'i olmadan yazılamaz.
+
+| # | Uç | Neden bekliyor |
+|---|-----|----------------|
+| 1 | `POST /apps/:appId/funnels/:id/restart` | Redis state/dedup/opt-out anahtarlarını temizler **ve bağlı cihazlara `force_clear_optout` gönderir**. Yalnız Redis kısmını yapmak, cihazlardaki yerel opt-out'ların takılı kalmasına yol açardı — insight bir daha hiç gösterilmezdi. |
+| 2 | `POST /apps/:appId/insights/:id/send` | Operatörün elle push'u; `insightEngine.sendManual` doğrudan WS'e yazıyor. |
+| 3 | `POST /apps/:appId/data-push` | `pushService.sendDataPush` — insight kaydetmeden anlık WS data push. |
+
+Faz 4'te realtime servisi ayağa kalkınca bu üçü admin'den mi çağrılacak (Feign → realtime)
+yoksa realtime'a mı taşınacak, §3.4'teki dispatch kararıyla birlikte netleşecek.
+
+---
+
 ## Faz 0'dan kalanlar (altyapı erişimi bekliyor)
 
 Kod tarafında yapılacak bir şey yok; üçü de dış sistem erişimi istiyor.

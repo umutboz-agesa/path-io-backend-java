@@ -12,7 +12,7 @@ Yol haritası: `PathIO_Java_Donusum_Yol_Haritasi.docx` (ana repo kökü).
 | Faz | Kapsam | Durum |
 |-----|--------|-------|
 | 0 | Gradle iskelet, common lib, admin dikey dilimi (apps CRUD), Dockerfile + Jenkinsfile | 🟢 Kod + altyapı tamam, deploy hattı bekliyor |
-| 1 | admin mini-service — 51 endpoint | 🟡 **35/51** — kalan: funnels (8), insights (8) |
+| 1 | admin mini-service — 51 endpoint | 🟢 **48/51** — kalan 3 uç WS'e bağlı, Faz 4'te |
 | 2 | funnel-worker — eventProcessor (Redis Streams → TimescaleDB) | — |
 | 3 | funnel-worker — funnelMatcher (550 satır durum makinesi) | — |
 | 4 | realtime mini-service — WS ağ geçidi + insightEngine | — |
@@ -177,6 +177,26 @@ Canlı Node (`:3000`) ve Java (`:8080`) aynı DB üzerinde karşılaştırıldı
 | `PUT` (kısmi güncelleme, `status`→pending, `lastError`→null) · `DELETE` → 204 | ✅ aynı |
 | Doğrulama: 8 senaryo (eksik/hatalı config ve credentials, tip enum) | ✅ aynı |
 | `POST /test` — eksik alan dalları, `status`/`lastError` yazımı | ✅ aynı |
+
+**funnels (7/8) · insights (6/8)**:
+
+| Uç | Sonuç |
+|----|-------|
+| funnels CRUD + toggle + doğrulama (isim, step sayısı, timeout aralığı) | ✅ aynı |
+| `GET /funnels/{id}/history` (+ limit/offset/status/userAction/deviceId filtreleri) | ✅ aynı |
+| `GET /funnels/{id}/history/devices` — ham SQL, camelCase alias'lar | ✅ aynı |
+| insights CRUD + deliveries + `Cannot edit a sent insight` | ✅ aynı |
+| Insight doğrulama: status/display.style/action.type/target union — 14 senaryo | ✅ aynı |
+
+**Funnel yanıtlarında iki farklı şekil:** `GET liste` motor temsilini (`FunnelDefinition`),
+`POST`/`PATCH` ham Drizzle satırını döner. Alanlar aynı, **sıra farklı** (`triggerMode` ↔
+`isActive`). Node'da liste `toDefinition()`'dan, create/update doğrudan satırdan geçtiği için
+oluşan bir tutarsızlık; iki ayrı DTO ile korunuyor.
+
+**Kısmi güncellemede "gönderilmedi ≠ null":** funnels ve insights PATCH gövdeleri ham `Map`
+olarak alınıyor. Node her alanı `!== undefined` ile kontrol ettiğinden gönderilmeyen alan
+korunur, açıkça `null` gönderilen alan temizlenir — record ile bu ikisi ayırt edilemezdi
+(`startsAt`/`expiresAt`/`scheduledAt` için kritik).
 
 **Credential maskeleme:** `private_key` → `••••••••`, `private_key_id` → ilk 8 karakter +
 `••••••••`. Node bunu destructuring ile yaptığı için maskelenen iki alan **nesnenin sonuna
