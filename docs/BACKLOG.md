@@ -36,7 +36,33 @@ aynı) — yani deploy hattının kod tarafı hazır.
 
 ---
 
-## 🔴 Şema kayması — migration'lar gerçek şemayı üretmiyor
+## ✅ Şema kayması — ÇÖZÜLDÜ (onay alındı, uygulandı)
+
+**Sonuç:** boş bir veritabanında `npm run db:migrate` artık canlı şemayla **birebir aynı**
+sonucu üretiyor — 143 kolon ve 31 index, kolon/index düzeyinde farksız.
+
+Yapılanlar (Node repo'su):
+
+| # | İş |
+|---|-----|
+| 1 | `meta/_journal.json` 5 kayıttan **15**'e tamamlandı. `0008`'in zaman damgası diğerlerinden eskiydi (May 2025 vs Apr 2026), migrator onu "zaten uygulanmış" sayıp atlıyordu; artan sıraya çekildi. |
+| 2 | `0009`, `0010`, `0011` idempotent yapıldı (`IF NOT EXISTS`; `0010`'daki eski kolon dönüşümü `DO`/`EXECUTE` bloğuna alındı). |
+| 3 | `0013_screen_events_session_id.sql` eklendi — `session_id` kolonu + iki index. |
+| 4 | `0014_schema_baseline_sync.sql` eklendi — hiçbir dosyada olmayan `sessions` ve `payload_templates` tabloları, `apps.bundle_id → bundle_ids` dönüşümü, `insights.display/data/template_id/scheduled_at`, `insight_deliveries.action_clicked_at`, sessions index'leri. |
+
+Doğrulama:
+* Boş DB'de migrate → canlı şemayla diff **boş** (kolonlar ve index'ler).
+* Canlı DB'de migrate → **veri değişmedi** (apps=7, funnels=10, insights=11, devices=10,
+  sessions=121, screens=58, deliveries=31 — öncesi/sonrası aynı), ledger 4 → 15 kayda çıktı.
+* Migration sonrası Node ↔ Java paritesi yeniden koşuldu: 35 uç, hepsi aynı.
+
+Java test fixture'ları `scripts/sync-migrations.sh` ile tazelendi (15 dosya).
+
+---
+
+## Eski kayıt — bulgunun ayrıntısı (arşiv)
+
+### 🔴 Şema kayması — migration'lar gerçek şemayı üretmiyordu
 
 **Faz 2'de kesişti** (eventProcessor `screen_events`'e `session_id` yazıyor) ve incelenince
 sorun tek kolondan çok daha büyük çıktı.

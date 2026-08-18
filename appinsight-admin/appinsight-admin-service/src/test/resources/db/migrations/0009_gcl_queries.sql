@@ -1,4 +1,4 @@
-CREATE TABLE gcl_queries (
+CREATE TABLE IF NOT EXISTS gcl_queries (
   id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   app_id      UUID        NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
   name        TEXT        NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE gcl_queries (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE gcl_query_hits (
+CREATE TABLE IF NOT EXISTS gcl_query_hits (
   id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   query_id    UUID        NOT NULL REFERENCES gcl_queries(id) ON DELETE CASCADE,
   app_id      UUID        NOT NULL,
@@ -19,5 +19,5 @@ CREATE TABLE gcl_query_hits (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX gcl_query_hits_query_ts_idx ON gcl_query_hits(query_id, ts DESC);
-CREATE INDEX gcl_query_hits_app_ts_idx   ON gcl_query_hits(app_id,   ts DESC);
+CREATE INDEX IF NOT EXISTS gcl_query_hits_query_ts_idx ON gcl_query_hits(query_id, ts DESC);
+CREATE INDEX IF NOT EXISTS gcl_query_hits_app_ts_idx   ON gcl_query_hits(app_id,   ts DESC);
